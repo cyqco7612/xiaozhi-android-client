@@ -109,7 +109,27 @@ class XiaozhiWebSocketManager {
         }
 
         // 使用IOWebSocketChannel并传递headers
-        _channel = IOWebSocketChannel.connect(uri, headers: headers);
+        // 注意: IOWebSocketChannel.connect 是同步返回的, 实际握手是异步的,
+        // 必须等待 ready future 完成才算真正连上 (修复 Android 误报"已连接"和 iOS 卡死问题)
+        final pendingChannel = IOWebSocketChannel.connect(uri, headers: headers);
+
+        print('$TAG: 等待WebSocket握手完成(10秒超时)...');
+        try {
+          await pendingChannel.ready.timeout(
+            const Duration(seconds: 10),
+            onTimeout: () {
+              throw TimeoutException('WebSocket握手超时(10秒), 可能是iOS自定义header兼容性问题');
+            },
+          );
+        } catch (e) {
+          print('$TAG: 握手失败: $e');
+          try { await pendingChannel.sink.close(); } catch (_) {}
+          _dispatchEvent(
+            XiaozhiEvent(type: XiaozhiEventType.error, data: "连接失败: $e"),
+          );
+          return;
+        }
+        _channel = pendingChannel;
 
         print('$TAG: 使用headers方式连接WebSocket成功');
       } catch (e) {
