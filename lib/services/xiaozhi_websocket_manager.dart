@@ -80,7 +80,15 @@ class XiaozhiWebSocketManager {
 
     try {
       // 创建WebSocket连接
-      Uri uri = Uri.parse(url);
+      // Fix: device-id 改走 URL query 参数, 不再依赖自定义 header
+      // (Flutter 在 iOS/Android 上带自定义 header 发起 WebSocket 握手会失败)
+      Uri baseUri = Uri.parse(url);
+      Uri uri = baseUri.replace(queryParameters: {
+        ...baseUri.queryParameters,
+        'device-id': _deviceId ?? '',
+        'client-id': _deviceId ?? '',
+      });
+      print('$TAG: 连接地址(带query参数): $uri');
 
       print('$TAG: 正在连接 $url');
       print('$TAG: 设备ID: $_deviceId');
@@ -108,10 +116,10 @@ class XiaozhiWebSocketManager {
           print('$TAG: 添加默认Authorization头: Bearer test-token');
         }
 
-        // 使用IOWebSocketChannel并传递headers
+        // 不再传递自定义 headers, device-id 已在 URL query 参数中
         // 注意: IOWebSocketChannel.connect 是同步返回的, 实际握手是异步的,
         // 必须等待 ready future 完成才算真正连上 (修复 Android 误报"已连接"和 iOS 卡死问题)
-        final pendingChannel = IOWebSocketChannel.connect(uri, headers: headers);
+        final pendingChannel = IOWebSocketChannel.connect(uri);
 
         print('$TAG: 等待WebSocket握手完成(10秒超时)...');
         try {
