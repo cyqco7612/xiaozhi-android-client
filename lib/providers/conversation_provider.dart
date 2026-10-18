@@ -225,6 +225,7 @@ class ConversationProvider extends ChangeNotifier {
     bool isImage = false,
     String? imageLocalPath,
     String? fileId,
+    bool isPending = false,
   }) async {
     final messageId = id ?? const Uuid().v4();
 
@@ -259,6 +260,7 @@ class ConversationProvider extends ChangeNotifier {
       isImage: isImage,
       imageLocalPath: imageLocalPath,
       fileId: fileId,
+      isPending: isPending,
     );
 
     _messages[conversationId] = [
@@ -327,6 +329,7 @@ class ConversationProvider extends ChangeNotifier {
         isImage: isImage || oldMessage.isImage,
         imageLocalPath: imageLocalPath ?? oldMessage.imageLocalPath,
         fileId: fileId ?? oldMessage.fileId,
+        isPending: oldMessage.isPending,
       );
 
       // 替换消息
@@ -355,6 +358,7 @@ class ConversationProvider extends ChangeNotifier {
   Future<void> updateMessage({
     required String messageId,
     required String content,
+    bool? isPending,
   }) async {
     // 查找包含该消息的会话
     String? targetConversationId;
@@ -384,6 +388,7 @@ class ConversationProvider extends ChangeNotifier {
         isImage: oldMessage.isImage,
         imageLocalPath: oldMessage.imageLocalPath,
         fileId: oldMessage.fileId,
+        isPending: isPending ?? oldMessage.isPending,
       );
 
       _messages[targetConversationId]![messageIndex] = updatedMessage;
@@ -431,6 +436,7 @@ class ConversationProvider extends ChangeNotifier {
                 isImage: message.isImage,
                 imageLocalPath: message.imageLocalPath,
                 fileId: message.fileId,
+                isPending: message.isPending,
               );
             }).toList();
       }

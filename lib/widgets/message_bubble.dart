@@ -64,6 +64,8 @@ class MessageBubble extends StatelessWidget {
                   child:
                       isThinking
                           ? _buildThinkingIndicator(context)
+                          : message.isPending
+                          ? _buildPendingIndicator(isUser)
                           : message.isImage
                           ? _buildImageContent(context)
                           : Text(
@@ -128,6 +130,34 @@ class MessageBubble extends StatelessWidget {
         _buildPulsatingDot(context, 0),
         _buildPulsatingDot(context, 1),
         _buildPulsatingDot(context, 2),
+      ],
+    );
+  }
+
+  /// 语音消息等待识别时的转圈提示
+  Widget _buildPendingIndicator(bool isUser) {
+    final spinnerColor = isUser ? Colors.white : Colors.grey.shade600;
+    final textColor = isUser ? Colors.white70 : Colors.grey.shade500;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          width: 16,
+          height: 16,
+          child: CircularProgressIndicator(
+            strokeWidth: 2.2,
+            valueColor: AlwaysStoppedAnimation<Color>(spinnerColor),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          '识别中...',
+          style: TextStyle(
+            color: textColor,
+            fontSize: 14,
+            height: 1.3,
+          ),
+        ),
       ],
     );
   }

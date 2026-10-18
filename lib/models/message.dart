@@ -10,6 +10,8 @@ class Message {
   final bool isImage;
   final String? imageLocalPath;
   final String? fileId;
+  /// 语音消息等待 ASR 识别结果时的占位状态，UI 上显示转圈
+  final bool isPending;
 
   Message({
     required this.id,
@@ -21,6 +23,7 @@ class Message {
     this.isImage = false,
     this.imageLocalPath,
     this.fileId,
+    this.isPending = false,
   });
 
   factory Message.fromJson(Map<String, dynamic> json) {
@@ -34,6 +37,8 @@ class Message {
       isImage: json['isImage'] ?? false,
       imageLocalPath: json['imageLocalPath'],
       fileId: json['fileId'],
+      // 历史数据没有该字段时默认为 false；pending 状态不持久化语义，按已完成处理
+      isPending: false,
     );
   }
 
