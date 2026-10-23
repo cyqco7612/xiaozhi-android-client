@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_sound/flutter_sound.dart';
 import '../services/xiaozhi_websocket_manager.dart';
+import 'text_response_timeout.dart';
 import '../utils/device_util.dart';
 import '../utils/audio_util.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
@@ -233,7 +234,6 @@ class XiaozhiService {
     try {
       // 创建一个Completer来等待响应
       final completer = Completer<String>();
-      bool hasResponse = false;
 
       print('$TAG: 开始发送文本消息: $message');
 
@@ -248,7 +248,6 @@ class XiaozhiService {
 
           print('$TAG: 收到服务器响应: ${event.data}');
           if (!completer.isCompleted) {
-            hasResponse = true;
             completer.complete(event.data as String);
             removeListener(onceListener);
           }
@@ -263,29 +262,13 @@ class XiaozhiService {
       // 先添加监听器，确保不会错过任何消息
       addListener(onceListener);
 
-      // 发送文本请求
-      print('$TAG: 发送文本请求: $message');
-      _webSocketManager!.sendTextRequest(message);
-
-      // 设置超时，15秒比10秒更宽松一些
-      final timeoutTimer = Timer(const Duration(seconds: 15), () {
-        if (!completer.isCompleted) {
-          print('$TAG: 请求超时，15秒内没有收到响应');
-          completer.completeError('请求超时');
-          removeListener(onceListener);
-        }
-      });
-
-      // 等待响应
       try {
-        final result = await completer.future;
-        // 取消超时定时器
-        timeoutTimer.cancel();
-        return result;
-      } catch (e) {
-        // 取消超时定时器
-        timeoutTimer.cancel();
-        rethrow;
+        print('$TAG: 发送文本请求: $message');
+        _webSocketManager!.sendTextRequest(message);
+        return await waitForTextResponse(completer.future);
+      } finally {
+        // Also remove the listener if sending throws or the wait times out.
+        removeListener(onceListener);
       }
     } catch (e) {
       print('$TAG: 发送消息失败: $e');

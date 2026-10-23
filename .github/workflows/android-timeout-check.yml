@@ -1,0 +1,59 @@
+name: Android text timeout fix
+
+on:
+  push:
+    branches: [codex/xiaozhi-text-timeout-20261023]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.29.2'
+          channel: stable
+          cache: true
+      - name: Get dependencies
+        run: flutter pub get
+      - name: Check timeout helper and regression test
+        run: dart analyze lib/services/text_response_timeout.dart test/text_response_timeout_test.dart
+      - name: Test delayed responses and timeout cleanup
+        run: flutter test test/text_response_timeout_test.dart
+      - name: Apply existing PCM plugin namespace compatibility fix
+        shell: python
+        run: |
+          import pathlib
+          root = pathlib.Path.home() / '.pub-cache/hosted/pub.dev/flutter_pcm_player-0.0.1/android'
+          gradle = root / 'build.gradle'
+          text = gradle.read_text()
+          if 'namespace' not in text:
+              text = text.replace('android {', 'android {\n    namespace "com.lhht.flutter_pcm_player"', 1)
+          else:
+              text = text.replace('namespace "com.example.flutter_pcm_player"', 'namespace "com.lhht.flutter_pcm_player"')
+          gradle.write_text(text)
+          manifest = root / 'src/main/AndroidManifest.xml'
+          manifest.write_text(manifest.read_text().replace('package="com.example.flutter_pcm_player"', 'package="com.lhht.flutter_pcm_player"'))
+      - name: Build Android APK
+        run: flutter build apk --debug
+      - name: Prepare installable artifact
+        shell: bash
+        run: |
+          cp build/app/outputs/flutter-apk/app-debug.apk AI-LHHT-2.0.1-timeout90.apk
+          sha256sum AI-LHHT-2.0.1-timeout90.apk > AI-LHHT-2.0.1-timeout90.apk.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AI-LHHT-2.0.1-timeout90
+          path: |
+            AI-LHHT-2.0.1-timeout90.apk
+            AI-LHHT-2.0.1-timeout90.apk.sha256
+          retention-days: 30
