@@ -21,7 +21,9 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.lhht.ai_assistant"
+        val sideBySide = providers.gradleProperty("timeoutSideBySide").orNull == "true"
+        applicationId = if (sideBySide) "com.lhht.ai_assistant.timeout90" else "com.lhht.ai_assistant"
+        manifestPlaceholders["appLabel"] = if (sideBySide) "AI-LHHT 90秒版" else "AI-LHHT"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = 24

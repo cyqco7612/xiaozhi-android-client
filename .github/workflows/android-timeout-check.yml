@@ -44,16 +44,18 @@ jobs:
           manifest = root / 'src/main/AndroidManifest.xml'
           manifest.write_text(manifest.read_text().replace('package="com.example.flutter_pcm_player"', 'package="com.lhht.flutter_pcm_player"'))
       - name: Build Android APK
+        env:
+          ORG_GRADLE_PROJECT_timeoutSideBySide: 'true'
         run: flutter build apk --debug
       - name: Prepare installable artifact
         shell: bash
         run: |
-          cp build/app/outputs/flutter-apk/app-debug.apk AI-LHHT-2.0.1-timeout90.apk
-          sha256sum AI-LHHT-2.0.1-timeout90.apk > AI-LHHT-2.0.1-timeout90.apk.sha256
+          cp build/app/outputs/flutter-apk/app-debug.apk AI-LHHT-2.0.1-timeout90-parallel.apk
+          sha256sum AI-LHHT-2.0.1-timeout90-parallel.apk > AI-LHHT-2.0.1-timeout90-parallel.apk.sha256
       - uses: actions/upload-artifact@v4
         with:
-          name: AI-LHHT-2.0.1-timeout90
+          name: AI-LHHT-2.0.1-timeout90-parallel
           path: |
-            AI-LHHT-2.0.1-timeout90.apk
-            AI-LHHT-2.0.1-timeout90.apk.sha256
+            AI-LHHT-2.0.1-timeout90-parallel.apk
+            AI-LHHT-2.0.1-timeout90-parallel.apk.sha256
           retention-days: 30
