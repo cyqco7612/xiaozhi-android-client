@@ -20,6 +20,8 @@ import 'package:ai_assistant/screens/voice_call_screen.dart';
 import 'dart:convert';
 import 'dart:async';
 import 'package:path_provider/path_provider.dart';
+import 'package:uuid/uuid.dart';
+import 'package:ai_assistant/utils/sound_effect.dart';
 
 class ChatScreen extends StatefulWidget {
   final Conversation conversation;
@@ -47,6 +49,9 @@ class _ChatScreenState extends State<ChatScreen> {
   double _startDragY = 0.0;
   final double _cancelThreshold = 50.0; // 上滑超过这个距离认为是取消
   Timer? _waveAnimationTimer;
+  // 语音识别中的占位消息 id（转圈状态），收到 ASR 结果后替换为文字
+  String? _pendingVoiceMessageId;
+  Timer? _voiceAsrTimeoutTimer;
   final List<double> _waveHeights = List.filled(20, 0.0);
   double _minWaveHeight = 5.0;
   double _maxWaveHeight = 30.0;
@@ -163,6 +168,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _connectionCheckTimer?.cancel();
     _autoReconnectTimer?.cancel();
     _waveAnimationTimer?.cancel();
+    _voiceAsrTimeoutTimer?.cancel();
 
     // 在销毁前确保停止所有音频播放
     if (_xiaozhiService != null) {
@@ -225,8 +231,23 @@ class _ChatScreenState extends State<ChatScreen> {
       String content = event.data as String;
       print('收到用户语音识别内容: $content');
 
+      if (content.isEmpty) return;
+
+      // 如果有等待中的语音消息，用识别结果替换转圈
+      final pendingId = _pendingVoiceMessageId;
+      if (pendingId != null) {
+        _clearPendingVoiceMessage();
+        conversationProvider.updateMessage(
+          messageId: pendingId,
+          content: content,
+          isPending: false,
+        );
+        _scrollToBottom();
+        return;
+      }
+
       // 只有在语音输入模式下才添加用户消息
-      if (content.isNotEmpty && _isVoiceInputMode) {
+      if (_isVoiceInputMode) {
         // 语音消息可能有延迟，使用Future.microtask确保UI已更新
         Future.microtask(() {
           conversationProvider.addMessage(
@@ -1073,6 +1094,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   // 停止录音并发送
   void _stopRecording() async {
+    String? pendingMessageId;
     try {
       setState(() {
         _isLoading = true;
@@ -1087,10 +1109,46 @@ class _ChatScreenState extends State<ChatScreen> {
       // 停止录音
       await _xiaozhiService?.stopListening();
 
+      // 语音已发出：在聊天列表插入"识别中"占位消息，并播放"嗖"音效
+      final conversationProvider = Provider.of<ConversationProvider>(
+        context,
+        listen: false,
+      );
+      pendingMessageId = const Uuid().v4();
+      _pendingVoiceMessageId = pendingMessageId;
+      await conversationProvider.addMessage(
+        conversationId: widget.conversation.id,
+        role: MessageRole.user,
+        content: '',
+        id: pendingMessageId,
+        isPending: true,
+      );
       _scrollToBottom();
+
+      // 播放发送音效（不阻塞主流程）
+      SoundEffect.playWhoosh();
+
+      // ASR 超时保护：20 秒还没回结果就标记失败
+      _voiceAsrTimeoutTimer?.cancel();
+      _voiceAsrTimeoutTimer = Timer(const Duration(seconds: 20), () {
+        _onVoiceAsrTimeout();
+      });
     } catch (e) {
       print('停止录音失败: $e');
       _showCustomSnackbar('语音发送失败: ${e.toString()}');
+
+      // 发送失败时清理占位状态
+      _clearPendingVoiceMessage();
+      if (pendingMessageId != null && mounted) {
+        Provider.of<ConversationProvider>(
+          context,
+          listen: false,
+        ).updateMessage(
+          messageId: pendingMessageId,
+          content: '语音发送失败，请重试',
+          isPending: false,
+        );
+      }
 
       // 出错时关闭语音输入模式
       setState(() {
@@ -1101,6 +1159,29 @@ class _ChatScreenState extends State<ChatScreen> {
         _isLoading = false;
       });
     }
+  }
+
+  // 清理语音识别中的占位状态
+  void _clearPendingVoiceMessage() {
+    _voiceAsrTimeoutTimer?.cancel();
+    _voiceAsrTimeoutTimer = null;
+    _pendingVoiceMessageId = null;
+  }
+
+  // ASR 超时：把转圈换成失败提示
+  void _onVoiceAsrTimeout() {
+    final pendingId = _pendingVoiceMessageId;
+    if (pendingId == null || !mounted) return;
+    _clearPendingVoiceMessage();
+    Provider.of<ConversationProvider>(
+      context,
+      listen: false,
+    ).updateMessage(
+      messageId: pendingId,
+      content: '语音识别失败，请重试',
+      isPending: false,
+    );
+    _scrollToBottom();
   }
 
   // 取消录音
